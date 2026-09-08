@@ -99,6 +99,32 @@ $s.TargetPath; $s.Arguments; $s.IconLocation
 
 あわせて **「同じ保管庫を2つのウィンドウで同時に開かないこと」** を必ず伝えてください。
 
+## 手順6: `obsidian://` リンクについて伝える
+
+**これは必ず伝えてください。作った時点では無害ですが、2つ目のObsidianを起動した瞬間に起きます。**
+
+Obsidianは起動のたびに「`obsidian://` は自分が処理する」とWindowsへ登録し直します。このとき **`--user-data-dir` は付きません**。2つ目のObsidianがこの登録を取ると、リンクを踏んだときに「2つ目のexeを、1つ目のアカウントの設定で」起動してしまいます。
+
+- 症状: リンクを踏むと**タスクバーが点滅するだけで窓が前に出てこない**
+- 副作用: **1つ目のアカウント側の保管庫リストが書き換わることがある**
+- 直しかた: 同じフォルダの `fix-links.bat`（または `fix-uri-handler.ps1`）
+
+ユーザーが `obsidian://` リンクを使っているか分からない場合は、「ダッシュボードや他のアプリからObsidianのノートを直接開くリンクを使っていますか」と聞いてください。使っていなければ影響はありません。
+
+非対話で直すときはこう実行します。
+
+```powershell
+# 元から入っているObsidianへ戻す（2つ目を入れる前と同じ状態）
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\fix-uri-handler.ps1" -Target original -Yes
+
+# 2つ目のObsidianへ向ける（設定フォルダ付きで正しく登録する）
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\fix-uri-handler.ps1" -Target copy -Id ai -Yes
+```
+
+最後に `RESULT_URI_HANDLER=` の行が出るので、値を確認してください。
+
+**Obsidianは起動のたびに書き戻すので、これは恒久的な設定ではありません。** 「リンクが効かなくなったら押し直す」ものだと伝えてください。
+
 ---
 
 ## やってはいけないこと
@@ -118,5 +144,6 @@ $s.TargetPath; $s.Arguments; $s.IconLocation
 | アイコンが紫のまま | 先に古いアイコンでピン留めしている。**一度ピン留めを外し、スタートメニューから付け直す**よう伝える |
 | ログインが1つ目と同じになる | `--user-data-dir` が渡っていない。ショートカットの `Arguments` を確認する。exe を直接ダブルクリックした場合もこうなる |
 | 実行がブロックされる | `-ExecutionPolicy Bypass` を付けているか確認する |
+| リンクを踏むとタスクバーが点滅するだけ | `obsidian://` の登録に `--user-data-dir` が無い。手順6の `fix-uri-handler.ps1` を実行する |
 
 実行内容はスクリプトと同じ場所の `setup-log.txt` に全部残ります。原因が分からないときはこれを読んでください。
