@@ -10,7 +10,25 @@
 
  元から入っている Obsidian には一切手を加えません。
  やり直したいときは、このスクリプトをもう一度実行してください。
+
+ 使い方は2通り
+   ・そのまま実行  … 質問に答えていく（start-here.bat をダブルクリックした場合）
+   ・引数で一発実行 … AIエージェントなどから叩く場合
+       powershell -NoProfile -ExecutionPolicy Bypass -File .\setup-obsidian-profile.ps1 `
+         -Label "Obsidian（AI推進部）" -Id ai -Color orange -Yes
 ============================================================ #>
+
+param(
+  # スタートメニューに出す名前
+  [string]$Label,
+  # フォルダにつける英数字のID（半角）
+  [string]$Id,
+  # アイコンの色
+  [ValidateSet('orange','teal','green','red')]
+  [string]$Color,
+  # 確認と最後のEnter待ちを省く（対話なしで走らせるとき）
+  [switch]$Yes
+)
 
 $ErrorActionPreference = 'Stop'
 $logPath = Join-Path $PSScriptRoot 'setup-log.txt'
@@ -237,24 +255,46 @@ $srcDir = Split-Path $srcExe -Parent
 Say "見つかった Obsidian : $srcDir"
 Say ''
 
-# ---- 2. 名前・ID・色を聞く ----
-$label = Ask '2つ目のObsidianの名前（スタートメニューに出る名前）' 'Obsidian（サブ）'
-do {
-  $slug = Ask 'フォルダにつける英数字のID（半角、記号なし）' 'sub'
-  $slug = $slug -replace '[^A-Za-z0-9\-]', ''
-} while ([string]::IsNullOrWhiteSpace($slug))
+# ---- 2. 名前・ID・色を決める（引数で渡されていれば聞かない） ----
+if ($Label) {
+  $label = $Label
+} else {
+  $label = Ask '2つ目のObsidianの名前（スタートメニューに出る名前）' 'Obsidian（サブ）'
+}
+$label = ($label -replace '[\\/:*?"<>|]', '').Trim()
+if ([string]::IsNullOrWhiteSpace($label)) { throw '名前が空です' }
 
-Say ''
-Say 'アイコンの色を選んでください（元のロゴの色だけ変えます）'
-Say '  1) オレンジ'
-Say '  2) 水色'
-Say '  3) グリーン'
-Say '  4) レッド'
-$colorNo = Ask '番号' '1'
-switch ($colorNo) {
-  '2'     { $hue = 275; $sat = 1.0 }
-  '3'     { $hue = 200; $sat = 1.0 }
-  '4'     { $hue =  90; $sat = 1.1 }
+if ($Id) {
+  $slug = $Id -replace '[^A-Za-z0-9\-]', ''
+  if ([string]::IsNullOrWhiteSpace($slug)) { throw 'IDは半角英数字で指定してください' }
+} else {
+  do {
+    $slug = Ask 'フォルダにつける英数字のID（半角、記号なし）' 'sub'
+    $slug = $slug -replace '[^A-Za-z0-9\-]', ''
+  } while ([string]::IsNullOrWhiteSpace($slug))
+}
+
+if ($Color) {
+  $colorKey = $Color
+} else {
+  Say ''
+  Say 'アイコンの色を選んでください（元のロゴの色だけ変えます）'
+  Say '  1) オレンジ'
+  Say '  2) 水色'
+  Say '  3) グリーン'
+  Say '  4) レッド'
+  $colorNo = Ask '番号' '1'
+  switch ($colorNo) {
+    '2'     { $colorKey = 'teal' }
+    '3'     { $colorKey = 'green' }
+    '4'     { $colorKey = 'red' }
+    default { $colorKey = 'orange' }
+  }
+}
+switch ($colorKey) {
+  'teal'  { $hue = 275; $sat = 1.0 }
+  'green' { $hue = 200; $sat = 1.0 }
+  'red'   { $hue =  90; $sat = 1.1 }
   default { $hue = 118; $sat = 1.2 }
 }
 
@@ -269,8 +309,10 @@ Say "  本体の複製先  : $dstDir"
 Say "  設定の置き場所: $profDir"
 Say "  ショートカット: $label"
 Say ''
-$go = Ask 'よければ Enter（やめるときは n）' 'y'
-if ($go -eq 'n') { Say '中止しました。'; try { Stop-Transcript | Out-Null } catch {}; exit }
+if (-not $Yes) {
+  $go = Ask 'よければ Enter（やめるときは n）' 'y'
+  if ($go -eq 'n') { Say '中止しました。'; try { Stop-Transcript | Out-Null } catch {}; exit }
+}
 
 # ---- 3. 複製先が起動中なら止める ----
 $running = Get-Process Obsidian -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$dstDir\*" }
@@ -327,5 +369,11 @@ Say '  ・同じ保管庫を2つのウィンドウで同時に開かないでく
 Say '  ・Obsidian本体を更新したら、このスクリプトをもう一度実行すると'
 Say '    2つ目も同じバージョンになります（設定・ログインは消えません）'
 Say ''
+Say '--- 結果（この行はAIエージェント用の要約です） ---'
+Say "RESULT_APP_DIR=$dstDir"
+Say "RESULT_PROFILE_DIR=$profDir"
+Say "RESULT_SHORTCUT=$lnkPath"
+Say "RESULT_ICON=$icoPath"
+Say ''
 try { Stop-Transcript | Out-Null } catch {}
-Read-Host '閉じるには Enter'
+if (-not $Yes) { Read-Host '閉じるには Enter' }
